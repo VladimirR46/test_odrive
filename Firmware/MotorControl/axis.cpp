@@ -1,10 +1,10 @@
+
 #include <stdlib.h>
 #include <functional>
 #include "gpio.h"
 
-#include "odrive_main.h"
 #include "utils.h"
-#include "communication/interface_can.hpp"
+#include "odrive_main.h"
 
 Axis::Axis(const AxisHardwareConfig_t& hw_config,
            Config_t& config,
@@ -12,14 +12,15 @@ Axis::Axis(const AxisHardwareConfig_t& hw_config,
            SensorlessEstimator& sensorless_estimator,
            Controller& controller,
            Motor& motor,
-           TrapezoidalTrajectory& trap) :
-      hw_config_(hw_config),
+           TrapezoidalTrajectory& trap)
+    : hw_config_(hw_config),
       config_(config),
       encoder_(encoder),
       sensorless_estimator_(sensorless_estimator),
       controller_(controller),
       motor_(motor),
-      trap_(trap) {
+      trap_(trap)
+{
     encoder_.axis_ = this;
     sensorless_estimator_.axis_ = this;
     controller_.axis_ = this;
@@ -27,7 +28,6 @@ Axis::Axis(const AxisHardwareConfig_t& hw_config,
     trap_.axis_ = this;
 
     decode_step_dir_pins();
-    update_watchdog_settings();
 }
 
 static void step_cb_wrapper(void* ctx) {
@@ -48,7 +48,7 @@ static void run_state_machine_loop_wrapper(void* ctx) {
 
 // @brief Starts run_state_machine_loop in a new thread
 void Axis::start_thread() {
-    osThreadDef(thread_def, run_state_machine_loop_wrapper, hw_config_.thread_priority, 0, 4 * 512);
+    osThreadDef(thread_def, run_state_machine_loop_wrapper, hw_config_.thread_priority, 0, 4*512);
     thread_id_ = osThreadCreate(osThread(thread_def), this);
     thread_id_valid_ = true;
 }
@@ -81,30 +81,11 @@ void Axis::load_default_step_dir_pin_config(
     config->dir_gpio_pin = hw_config.dir_gpio_pin;
 }
 
-void Axis::load_default_can_id(const int& id, Config_t& config){
-    config.can_node_id = id;
-}
-
 void Axis::decode_step_dir_pins() {
     step_port_ = get_gpio_port_by_pin(config_.step_gpio_pin);
     step_pin_ = get_gpio_pin_by_pin(config_.step_gpio_pin);
     dir_port_ = get_gpio_port_by_pin(config_.dir_gpio_pin);
     dir_pin_ = get_gpio_pin_by_pin(config_.dir_gpio_pin);
-}
-
-// @brief: Setup the watchdog reset value from the configuration watchdog timeout interval. 
-void Axis::update_watchdog_settings() {
-
-    if(config_.watchdog_timeout <= 0.0f) { // watchdog disabled 
-        watchdog_reset_value_ = 0;
-    } else if(config_.watchdog_timeout >= UINT32_MAX / (current_meas_hz+1)) { //overflow! 
-        watchdog_reset_value_ = UINT32_MAX;
-    } else {
-        watchdog_reset_value_ = static_cast<uint32_t>(config_.watchdog_timeout * current_meas_hz);
-    }
-
-    // Do a feed to avoid instant timeout
-    watchdog_feed();
 }
 
 // @brief (de)activates step/dir input
@@ -157,9 +138,7 @@ bool Axis::do_updates() {
     // Sub-components should use set_error which will propegate to this error_
     encoder_.update();
     sensorless_estimator_.update();
-    bool ret = check_for_errors();
-    odCAN->send_heartbeat(this);
-    return ret;
+    return check_for_errors();
 }
 
 bool Axis::run_sensorless_spin_up() {

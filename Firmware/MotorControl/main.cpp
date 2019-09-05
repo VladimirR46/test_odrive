@@ -7,10 +7,8 @@
 #include <communication/interface_usb.h>
 #include <communication/interface_uart.h>
 #include <communication/interface_i2c.h>
-#include <communication/interface_can.hpp>
 
 BoardConfig_t board_config;
-ODriveCAN::Config_t can_config;
 Encoder::Config_t encoder_configs[AXIS_COUNT];
 SensorlessEstimator::Config_t sensorless_configs[AXIS_COUNT];
 Controller::Config_t controller_configs[AXIS_COUNT];
@@ -22,11 +20,9 @@ bool user_config_loaded_;
 SystemStats_t system_stats_ = { 0 };
 
 Axis *axes[AXIS_COUNT];
-ODriveCAN *odCAN;
 
 typedef Config<
     BoardConfig_t,
-    ODriveCAN::Config_t,
     Encoder::Config_t[AXIS_COUNT],
     SensorlessEstimator::Config_t[AXIS_COUNT],
     Controller::Config_t[AXIS_COUNT],
@@ -37,7 +33,6 @@ typedef Config<
 void save_configuration(void) {
     if (ConfigFormat::safe_store_config(
             &board_config,
-            &can_config,
             &encoder_configs,
             &sensorless_configs,
             &controller_configs,
@@ -50,12 +45,11 @@ void save_configuration(void) {
     }
 }
 
-extern "C" int load_configuration(void) {
+void load_configuration(void) {
     // Try to load configs
     if (NVM_init() ||
         ConfigFormat::safe_load_config(
                 &board_config,
-                &can_config,
                 &encoder_configs,
                 &sensorless_configs,
                 &controller_configs,
@@ -64,7 +58,6 @@ extern "C" int load_configuration(void) {
                 &axis_configs)) {
         //If loading failed, restore defaults
         board_config = BoardConfig_t();
-        can_config = ODriveCAN::Config_t();
         for (size_t i = 0; i < AXIS_COUNT; ++i) {
             encoder_configs[i] = Encoder::Config_t();
             sensorless_configs[i] = SensorlessEstimator::Config_t();
@@ -74,12 +67,10 @@ extern "C" int load_configuration(void) {
             axis_configs[i] = Axis::Config_t();
             // Default step/dir pins are different, so we need to explicitly load them
             Axis::load_default_step_dir_pin_config(hw_configs[i].axis_config, &axis_configs[i]);
-            Axis::load_default_can_id(i, axis_configs[i]);
         }
     } else {
         user_config_loaded_ = true;
     }
-    return user_config_loaded_;
 }
 
 void erase_configuration(void) {
@@ -106,8 +97,7 @@ void enter_dfu_mode() {
 
 extern "C" {
 int odrive_main(void);
-
-void vApplicationStackOverflowHook(xTaskHandle *pxTask, signed portCHAR *pcTaskName) {
+void vApplicationStackOverflowHook(void) {
     for (;;); // TODO: safe action
 }
 void vApplicationIdleHook(void) {
@@ -121,12 +111,13 @@ void vApplicationIdleHook(void) {
         system_stats_.min_stack_space_uart = uxTaskGetStackHighWaterMark(uart_thread) * sizeof(StackType_t);
         system_stats_.min_stack_space_usb_irq = uxTaskGetStackHighWaterMark(usb_irq_thread) * sizeof(StackType_t);
         system_stats_.min_stack_space_startup = uxTaskGetStackHighWaterMark(defaultTaskHandle) * sizeof(StackType_t);
-        system_stats_.min_stack_space_can = uxTaskGetStackHighWaterMark(odCAN->thread_id_) * sizeof(StackType_t);
     }
 }
 }
 
 int odrive_main(void) {
+    // Load persistent configuration (or defaults)
+    load_configuration();
 
 #if HW_VERSION_MAJOR == 3 && HW_VERSION_MINOR >= 3
     if (board_config.enable_i2c_instead_of_can) {
@@ -170,7 +161,6 @@ int odrive_main(void) {
 #endif
 
     // Construct all objects.
-    odCAN = new ODriveCAN(&hcan1, can_config);
     for (size_t i = 0; i < AXIS_COUNT; ++i) {
         Encoder *encoder = new Encoder(hw_configs[i].encoder_config,
                                        encoder_configs[i]);

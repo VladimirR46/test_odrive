@@ -95,6 +95,9 @@ void init_communication(void) {
 float oscilloscope[OSCILLOSCOPE_SIZE] = {0};
 size_t oscilloscope_pos = 0;
 
+
+static CAN_context can1_ctx;
+
 // Helper class because the protocol library doesn't yet
 // support non-member functions
 // TODO: make this go away
@@ -167,7 +170,7 @@ static inline auto make_obj_tree() {
             ),
         make_protocol_object("axis0", axes[0]->make_protocol_definitions()),
         make_protocol_object("axis1", axes[1]->make_protocol_definitions()),
-        make_protocol_object("can", odCAN->make_protocol_definitions()),
+        make_protocol_object("can", can1_ctx.make_protocol_definitions()),
         make_protocol_property("test_property", &test_property),
         make_protocol_function("test_function", static_functions, &StaticFunctions::test_function, "delta"),
         make_protocol_function("get_oscilloscope_val", static_functions, &StaticFunctions::get_oscilloscope_val, "index"),
@@ -202,7 +205,8 @@ void communication_task(void * ctx) {
     if (board_config.enable_i2c_instead_of_can) {
         start_i2c_server();
     } else {
-        odCAN->start_can_server();
+        // TODO: finish implementing CAN
+        // start_can_server(can1_ctx, CAN1, serial_number);
     }
 
     for (;;) {

@@ -11,7 +11,6 @@
 		}
 	],
 	"settings": {
-		"c-cpp-flylint.cppcheck.standard": ["c99","c++17"],
 		"files.associations": {
 			"memory": "cpp",
 			"utility": "cpp",
@@ -46,8 +45,7 @@
 			"chrono": "cpp",
 			"condition_variable": "cpp",
 			"future": "cpp",
-			"arm_math.h": "c",
-			"iterator": "cpp"
+			"arm_math.h": "c"
 		}
 	}
 }
